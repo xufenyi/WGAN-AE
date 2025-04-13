@@ -6,9 +6,9 @@ from datetime import datetime
 
 
 class FFTPreprocessLayer(layers.Layer):
-    '''
+    """
     A custom Keras layer that applies Fast Fourier Transform (FFT) to the input signal.
-    '''
+    """
     def __init__(self, **kwargs):
         super(FFTPreprocessLayer, self).__init__(**kwargs)
         self.trainable = False
@@ -33,6 +33,7 @@ def create_generator(config: dict):
             padding='same',
             activation='relu'
         )(x)
+    assert x.shape[1] == config['signal_length'], f'Expected {config['signal_length']} but got {x.shape[1]}'
     
     outputs = layers.Conv1D(
         filters=1, kernel_size=config['generator_output_kernel'], padding='same', activation='tanh'
