@@ -15,3 +15,8 @@ pip install -r requirements.txt
 ```bash
 python train.py
 ```
+
+3. (Optional) Visualize the training process with TensorBoard:
+```bash
+tensorboard --logdir=logs
+```

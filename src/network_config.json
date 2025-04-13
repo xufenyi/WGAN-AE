@@ -1,0 +1,32 @@
+{
+    "noise_dim": 100,
+    "signal_length": 5000,
+    "generator_initial_dense": 1250,
+    "generator_output_kernel": 16,
+    "generator_conv_layers": [
+        {
+            "filters": 64,
+            "kernel_size": 16,
+            "strides": 2
+        },
+        {
+            "filters": 32,
+            "kernel_size": 16,
+            "strides": 2
+        }
+    ],
+    "critic_branch1": {
+        "filters": 32,
+        "kernel_size": 16,
+        "pool_size": 4
+    },
+    "critic_branch2": {
+        "filters": 32,
+        "kernel_size": 16,
+        "pool_size": 4
+    },
+    "critic_final_conv": {
+        "filters": 64,
+        "kernel_size": 8
+    }
+}

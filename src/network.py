@@ -1,11 +1,14 @@
+import numpy as np
 import tensorflow as tf
 import tensorflow.keras as keras
 from tensorflow.keras import layers, Model
-import numpy as np
 from datetime import datetime
 
 
 class FFTPreprocessLayer(layers.Layer):
+    '''
+    A custom Keras layer that applies Fast Fourier Transform (FFT) to the input signal.
+    '''
     def __init__(self, **kwargs):
         super(FFTPreprocessLayer, self).__init__(**kwargs)
         self.trainable = False
@@ -17,27 +20,65 @@ class FFTPreprocessLayer(layers.Layer):
         return tf.expand_dims(tf.abs(fft), axis=-1)
 
 
-def create_generator(noise_dim=100):
-    inputs = layers.Input(shape=(noise_dim,))
-    x = layers.Dense(1250, activation='relu')(inputs)
-    x = layers.Reshape((1250, 1))(x)
-    x = layers.Conv1DTranspose(64, kernel_size=16, strides=2, padding='same', activation='relu')(x)
-    x = layers.Conv1DTranspose(32, kernel_size=16, strides=2, padding='same', activation='relu')(x)
-    outputs = layers.Conv1D(1, kernel_size=16, padding='same', activation='tanh')(x)
+def create_generator(config: dict):
+    inputs = layers.Input(shape=(config['noise_dim'],))
+    
+    x = layers.Dense(config['generator_initial_dense'], activation='relu')(inputs)
+    x = layers.Reshape((config['generator_initial_dense'], 1))(x)
+    for layer_config in config['generator_conv_layers']:
+        x = layers.Conv1DTranspose(
+            filters=layer_config['filters'],
+            kernel_size=layer_config['kernel_size'],
+            strides=layer_config['strides'],
+            padding='same',
+            activation='relu'
+        )(x)
+    
+    outputs = layers.Conv1D(
+        filters=1, kernel_size=config['generator_output_kernel'], padding='same', activation='tanh'
+    )(x)
     return Model(inputs, outputs)
 
 
-def create_critic(signal_length=5000):
-    inputs = layers.Input(shape=(signal_length, 1))
-    branch1 = layers.Conv1D(32, kernel_size=16, activation='relu', padding='same')(inputs)
-    branch1 = layers.MaxPooling1D(pool_size=4)(branch1)
+def create_critic(config: dict):
+    inputs = layers.Input(shape=(config['signal_length'], 1))
+    
+    # Branch 1: Standard convolution
+    branch1 = layers.Conv1D(
+        config['critic_branch1']['filters'],
+        kernel_size=config['critic_branch1']['kernel_size'],
+        activation='relu',
+        padding='same'
+    )(inputs)
+    branch1 = layers.MaxPooling1D(
+        pool_size=config['critic_branch1']['pool_size']
+    )(branch1)
+
+    # Branch 2: FFT preprocessing
     branch2 = FFTPreprocessLayer()(inputs)
-    branch2 = layers.Conv1D(32, kernel_size=16, activation='relu', padding='same')(branch2)
-    branch2 = layers.MaxPooling1D(pool_size=4)(branch2)
+    branch2 = layers.Conv1D(
+        config['critic_branch2']['filters'],
+        kernel_size=config['critic_branch2']['kernel_size'],
+        activation='relu',
+        padding='same'
+    )(branch2)
+    branch2 = layers.MaxPooling1D(
+        pool_size=config['critic_branch2']['pool_size']
+    )(branch2)
+
+    # Merge branches
     merged = layers.concatenate([branch1, branch2])
-    x = layers.Conv1D(64, kernel_size=8, activation='relu', padding='same')(merged)
+
+    # Final conv layer
+    x = layers.Conv1D(
+        config['critic_final_conv']['filters'],
+        kernel_size=config['critic_final_conv']['kernel_size'],
+        activation='relu',
+        padding='same'
+    )(merged)
     x = layers.GlobalAveragePooling1D()(x)
-    outputs = layers.Dense(1)(x)  # 无sigmoid
+
+    outputs = layers.Dense(1)(x)
     return Model(inputs, outputs)
 
 
@@ -57,7 +98,7 @@ def train_wgan_gp(generator, critic, X_real, noise_dim=100, epochs=100, batch_si
     g_optimizer = tf.keras.optimizers.Adam(learning_rate=0.0001, beta_1=0.5, beta_2=0.9)
     c_optimizer = tf.keras.optimizers.Adam(learning_rate=0.0001, beta_1=0.5, beta_2=0.9)
 
-    log_dir = "../logs/wgan/" + datetime.now().strftime("%Y%m%d-%H%M%S")
+    log_dir = '../logs/wgan/' + datetime.now().strftime('%Y%m%d-%H%M%S')
     summary_writer = tf.summary.create_file_writer(log_dir)
 
     for epoch in range(epochs):
@@ -87,9 +128,9 @@ def train_wgan_gp(generator, critic, X_real, noise_dim=100, epochs=100, batch_si
         g_optimizer.apply_gradients(zip(g_grads, generator.trainable_variables))
 
         with summary_writer.as_default():
-            tf.summary.scalar("Generator Loss", g_loss, step=epoch)
-            tf.summary.scalar("Critic Loss", c_loss, step=epoch)
-            tf.summary.scalar("Gradient Penalty", gp, step=epoch)
+            tf.summary.scalar('Generator Loss', g_loss, step=epoch)
+            tf.summary.scalar('Critic Loss', c_loss, step=epoch)
+            tf.summary.scalar('Gradient Penalty', gp, step=epoch)
 
         if epoch % 10 == 0:
-            print(f"Epoch {epoch}, Critic Loss: {c_loss.numpy()}, GP: {gp.numpy()}, Generator Loss: {g_loss.numpy()}")
+            print(f'Epoch {epoch}, Critic Loss: {c_loss.numpy()}, GP: {gp.numpy()}, Generator Loss: {g_loss.numpy()}')
