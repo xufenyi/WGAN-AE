@@ -22,64 +22,69 @@ class FFTPreprocessLayer(layers.Layer):
 
 def create_generator(config: dict):
     inputs = layers.Input(shape=(config['noise_dim'],))
-    
-    x = layers.Dense(config['generator_initial_dense'], activation='relu')(inputs)
-    x = layers.Reshape((config['generator_initial_dense'], 1))(x)
-    for layer_config in config['generator_conv_layers']:
-        x = layers.Conv1DTranspose(
-            filters=layer_config['filters'],
-            kernel_size=layer_config['kernel_size'],
-            strides=layer_config['strides'],
-            padding='same',
-            activation='relu'
-        )(x)
-    assert x.shape[1] == config['signal_length'], f'Expected {config['signal_length']} but got {x.shape[1]}'
-    
-    outputs = layers.Conv1D(
-        filters=1, kernel_size=config['generator_output_kernel'], padding='same', activation='tanh'
-    )(x)
+    x = inputs
+    x = _build_network(x, config['generator_layers'])
+    outputs = x
     return Model(inputs, outputs)
+
+
+def _build_network(input_tensor: tf.Tensor, layer_configs: list):
+    x = input_tensor
+    for layer_config in layer_configs:
+        layer_name = layer_config['name']
+        if layer_name == 'Conv1D':
+            x = layers.Conv1D(
+                filters=layer_config['filters'],
+                kernel_size=layer_config['kernel_size'],
+                strides=layer_config.get('strides', 1),
+                padding=layer_config.get('padding', 'same'),
+                activation=layer_config.get('activation', 'relu')
+            )(x)
+        elif layer_name == 'Dropout':
+            x = layers.Dropout(rate=layer_config['rate'])(x)
+        elif layer_name == 'MaxPooling1D':
+            x = layers.MaxPooling1D(
+                pool_size=layer_config['pool_size'],
+                strides=layer_config['strides']
+            )(x)
+        elif layer_name == 'GlobalAveragePooling1D':
+            x = layers.GlobalAveragePooling1D()(x)
+        elif layer_name == 'Dense':
+            x = layers.Dense(
+                units=layer_config['units'],
+                activation=layer_config.get('activation', 'relu')
+            )(x)
+        elif layer_name == 'BatchNormalization':
+            x = layers.BatchNormalization()(x)
+        elif layer_name == 'Reshape':
+            x = layers.Reshape(target_shape=layer_config['target_shape'])(x)
+        elif layer_name == 'Conv1DTranspose':
+            x = layers.Conv1DTranspose(
+                filters=layer_config['filters'],
+                kernel_size=layer_config['kernel_size'],
+                strides=layer_config.get('strides', 1),
+                padding=layer_config.get('padding', 'same'),
+                activation=layer_config.get('activation', 'relu')
+            )(x)
+    return x
 
 
 def create_critic(config: dict):
     inputs = layers.Input(shape=(config['signal_length'], 1))
     
     # Branch 1: Standard convolution
-    branch1 = layers.Conv1D(
-        config['critic_branch1']['filters'],
-        kernel_size=config['critic_branch1']['kernel_size'],
-        activation='relu',
-        padding='same'
-    )(inputs)
-    branch1 = layers.MaxPooling1D(
-        pool_size=config['critic_branch1']['pool_size']
-    )(branch1)
+    branch1 = inputs
+    branch1 = _build_network(branch1, config['critic_branch1_layers'])
 
     # Branch 2: FFT preprocessing
     branch2 = FFTPreprocessLayer()(inputs)
-    branch2 = layers.Conv1D(
-        config['critic_branch2']['filters'],
-        kernel_size=config['critic_branch2']['kernel_size'],
-        activation='relu',
-        padding='same'
-    )(branch2)
-    branch2 = layers.MaxPooling1D(
-        pool_size=config['critic_branch2']['pool_size']
-    )(branch2)
+    branch2 = _build_network(branch2, config['critic_branch2_layers'])
 
     # Merge branches
     merged = layers.concatenate([branch1, branch2])
+    merged = _build_network(merged, config['critic_merged_layers'])
 
-    # Final conv layer
-    x = layers.Conv1D(
-        config['critic_final_conv']['filters'],
-        kernel_size=config['critic_final_conv']['kernel_size'],
-        activation='relu',
-        padding='same'
-    )(merged)
-    x = layers.GlobalAveragePooling1D()(x)
-
-    outputs = layers.Dense(1)(x)
+    outputs = layers.Dense(1)(merged)
     return Model(inputs, outputs)
 
 
@@ -96,8 +101,8 @@ def gradient_penalty(critic, real_samples, fake_samples):
 
 
 def train_wgan_gp(generator, critic, X_real, noise_dim=100, epochs=100, batch_size=32, n_critic=5, gp_weight=10):
-    g_optimizer = tf.keras.optimizers.Adam(learning_rate=0.0001, beta_1=0.5, beta_2=0.9)
-    c_optimizer = tf.keras.optimizers.Adam(learning_rate=0.0001, beta_1=0.5, beta_2=0.9)
+    g_optimizer = tf.keras.optimizers.Adam(learning_rate=0.00008, beta_1=0.5, beta_2=0.9)
+    c_optimizer = tf.keras.optimizers.Adam(learning_rate=0.00004, beta_1=0.5, beta_2=0.9)
 
     log_dir = '../logs/wgan/' + datetime.now().strftime('%Y%m%d-%H%M%S')
     summary_writer = tf.summary.create_file_writer(log_dir)

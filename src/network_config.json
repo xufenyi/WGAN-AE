@@ -1,32 +1,123 @@
 {
     "noise_dim": 100,
     "signal_length": 5000,
-    "generator_initial_dense": 1250,
-    "generator_output_kernel": 16,
-    "generator_conv_layers": [
+    "generator_layers": [
         {
-            "filters": 64,
-            "kernel_size": 16,
+            "name": "Dense",
+            "units": 1000
+        },
+        {
+            "name": "BatchNormalization"
+        },
+        {
+            "name": "Dense",
+            "units": 5000
+        },
+        {
+            "name": "BatchNormalization"
+        },
+        {
+            "name": "Dense",
+            "units": 10000
+        },
+        {
+            "name": "BatchNormalization"
+        },
+        {
+            "name": "Reshape",
+            "target_shape": [1250, 8]
+        },
+        {
+            "name": "Conv1DTranspose",
+            "filters": 32,
+            "kernel_size": 8,
             "strides": 2
         },
         {
+            "name": "BatchNormalization"
+        },
+        {
+            "name": "Conv1DTranspose",
+            "filters": 32,
+            "kernel_size": 8,
+            "strides": 2
+        },
+        {
+            "name": "BatchNormalization"
+        },
+        {
+            "name": "Conv1D",
+            "filters": 1,
+            "kernel_size": 16,
+            "activation": "tanh"
+        }
+    ],
+    "critic_branch1_layers": [
+        {
+            "name": "Conv1D",
+            "filters": 16,
+            "kernel_size": 32,
+            "strides": 4,
+            "padding": "valid"
+        },
+        {
+            "name": "Conv1D",
             "filters": 32,
             "kernel_size": 16,
+            "strides": 1
+        },
+        {
+            "name": "MaxPooling1D",
+            "pool_size": 4,
             "strides": 2
         }
     ],
-    "critic_branch1": {
-        "filters": 32,
-        "kernel_size": 16,
-        "pool_size": 4
-    },
-    "critic_branch2": {
-        "filters": 32,
-        "kernel_size": 16,
-        "pool_size": 4
-    },
-    "critic_final_conv": {
-        "filters": 64,
-        "kernel_size": 8
-    }
+    "critic_branch2_layers": [
+        {
+            "name": "Conv1D",
+            "filters": 16,
+            "kernel_size": 32,
+            "strides": 4,
+            "padding": "valid"
+        },
+        {
+            "name": "Conv1D",
+            "filters": 32,
+            "kernel_size": 16,
+            "strides": 1
+        },
+        {
+            "name": "MaxPooling1D",
+            "pool_size": 4,
+            "strides": 2
+        }
+    ],
+    "critic_merged_layers": [
+        {
+            "name": "Conv1D",
+            "filters": 16,
+            "kernel_size": 16
+        },
+        {
+            "name": "Dropout",
+            "rate": 0.05
+        },
+        {
+            "name": "Conv1D",
+            "filters": 32,
+            "kernel_size": 8
+        },
+        {
+            "name": "Dropout",
+            "rate": 0.05
+        },
+        {
+            "name": "Conv1D",
+            "filters": 32,
+            "kernel_size": 4
+        },
+        {
+            "name": "GlobalAveragePooling1D"
+        }
+    ]
 }
